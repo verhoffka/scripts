@@ -1,0 +1,20 @@
+egrep PTR named_querylog* |  /usr/xpg4/bin/awk '
+    BEGIN{
+        FS = "[ |#|.]"
+        i=1
+    }
+    {source1[i]=$5}
+    {source2[i]=$6}
+    {source3[i]=$7}
+    {source4[i]=$8}
+    {destination1[i]=$16}
+    {destination2[i]=$15}
+    {destination3[i]=$14}
+    {destination4[i]=$13;i++}
+    END {
+        for (j=0;j<i;j++){
+            if (destination1[j] == 10) {
+                print source1[j]"."source2[j]"."source3[j]"."source4[j]" : " destination1[j]"."destination2[j]"."destination3[j]"."destination4[j]
+            }
+        }
+    }'
