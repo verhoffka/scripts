@@ -1,0 +1,123 @@
+#!/bin/ksh
+
+
+###########################################################################################
+### Variables                                                                           ###
+###########################################################################################
+CMD_AWK=/bin/awk
+CMD_CAT=/bin/cat
+CMD_COPY=/bin/cp
+CMD_DATE=/usr/bin/date
+CMD_DIFF=/bin/diff
+CMD_ECHO=/bin/echo
+CMD_EGREP=/bin/egrep
+CMD_LS=/bin/ls
+CMD_MAIL=/usr/bin/mailx
+CMD_MKDIR=/bin/mkdir
+CMD_SLEEP=/bin/sleep
+
+DEBUG=FALSE
+
+
+###########################################################################################
+### Functions                                                                           ###
+###########################################################################################
+
+check_return_code ()
+    {
+    typeset CMD=$1
+    typeset RC=$2
+    typeset EXITCODE=$3
+    typeset SUBJECT=$4
+    typeset CONTENT=$5
+
+    if [[ ${RC} != 0 ]]; then
+
+        logit "Return code from '${CMD}' is ${RC}."
+        logit "Script Exit Code will be ${EXITCODE}"
+        logit "Sending failure notification..."
+
+        send_email "${SUBJECT}" "${CONTENT}"
+        logit "Exiting..."
+        exit ${EXITCODE}
+    fi
+    }
+
+cont ()
+    {
+    echo $*
+    while [ TRUE ]; do
+        echo "Continue (Y/N)?"
+        read ANSWER
+        if [[ (${ANSWER} = N) || (${ANSWER} = n) ]]; then
+            exit 0;
+        elif [[ (${ANSWER} = Y) || (${ANSWER} = y) ]]; then
+            break
+        else
+            echo "Invalid Response: ${ANSWER}"
+            echo ""
+        fi
+    done
+    }
+
+logit ()
+    {
+    LOGMSG=$*
+    MSGTIME=`${CMD_DATE} "+%Y-%m-%d @ %H:%M:%S"`
+
+    echo "${MSGTIME} : ${LOGMSG}" >> ${LOGFILE}
+    }
+
+safeRunCommand ()
+    {
+    typeset COMMAND=$*
+    typeset THISRC
+
+    [[ ${DEGUG} = "TRUE" ]] && echo "Command: ${COMMAND}"
+
+    # Run the command and log the output, including STDERR
+    # The following trick is from
+    # http://www.unix.com/unix-dummies-questions-answers/13018-exit-status-command-pipe-line.html#post47559
+    exec 5>&1
+    tee -a "${LOGFILE}" >&5 |&
+    exec >&p
+    eval "${COMMAND}" 2>&1
+    THISRC=$?
+    exec >&- >&5
+    wait
+
+    # log the return code
+    logit "Command '${COMMAND}' - Return Code: ${THISRC}"
+
+    return ${THISRC}
+    }
+
+send_email ()
+    {
+    typeset SUBJECT="$1"
+    typeset CONTENT="$2"
+    typeset FROM="$3"
+    typeset TO="$4"
+
+    if [[ ${DEBUG} = "TRUE" ]]; then
+        echo "Subject: ${SUBJECT}"
+        echo "Content: ${CONTENT}"
+        echo "From   : ${FROM}"
+        echo "To     : ${TO}"
+    fi
+
+${CMD_MAIL} -s "${SUBJECT}" -r ${FROM} "${TO}" <<EOF
+${CONTENT}
+EOF
+    }
+
+contains() {
+    string="$1"
+    substring="$2"
+    if test "${string#*$substring}" != "$string"
+    then
+        return 0    # $substring is in $string
+    else
+        return 1    # $substring is not in $string
+    fi
+}
