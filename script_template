@@ -1,0 +1,65 @@
+#!/bin/ksh
+
+. ksh_library
+
+
+###########################################################################################
+### Variables                                                                           ###
+###########################################################################################
+DATE=`${CMD_DATE} "+%Y%m%d.%H%M%S"`
+OPER_UTIL=/u/csd/kca303/ingres_weekly_cold_backup
+LOGFILE="${OPER_UTIL}/logs/check_if_backup_is_running.${DATE}"
+OUTPUT_DIR="/u/csd/kca303/ingres_weekly_cold_backup/outputs"
+EMAIL_FROM="kevin.verhoff@hpe.com"
+EMAIL_TO="kevin.verhoff@hpe.com,8162778871@cingularme.com"
+
+
+###########################################################################################
+### Script Specific Functions                                                           ###
+###########################################################################################
+displayUsage ()
+    {
+    echo ""
+    echo "Usage: ingres_weekly_cold_backup [-d] [-?]"
+    echo "    -d    Debug"
+    echo "    -?    Display command usage information"
+
+    exit 255
+    }
+
+
+###########################################################################################
+### Script Main Body                                                                    ###
+###########################################################################################
+
+logit "Starting"
+
+#
+# Go through the command line arguments
+#
+while [ $# -ne 0 ]
+do
+    case $1 in
+        -d) DEBUG=TRUE
+            ;;
+
+        -?) displayUsage
+            ;;
+
+         *)
+            echo "Invalid command line arguement!\n"
+            displayUsage
+            ;;
+    esac
+    shift
+done
+
+###
+### Useful lines to remind me how I did some things....
+###
+### [[ ${DEBUG} = "TRUE" ]] && CMD="ps -ef | egrep /usr/omni/scripts/weekly_all_backups | egrep -v 'egrep|ps|tee'"
+### [[ ${DEBUG} = "TRUE" ]] && safeRunCommand ${CMD}
+### CMD="ps -ef | egrep /usr/omni/scripts/weekly_all_backups | egrep -v 'egrep|ps|tee' | wc -l > ${OUTPUT_DIR}/processcount"
+### safeRunCommand ${CMD}
+### PROCESSCOUNT=$(cat ${OUTPUT_DIR}/processcount | sed -e 's/^[ \t]*//')
+###
