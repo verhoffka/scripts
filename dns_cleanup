@@ -1,0 +1,132 @@
+#!/bin/ksh
+
+# Import the script library for KSH
+. ./ksh_library
+
+# Local Variables
+###########################################################################################
+### Script Specific Variables                                                           ###
+###########################################################################################
+COUNT=0
+DATE=`${CMD_DATE} "+%Y%m%d"`
+DEBUG="false"                 # Default of no debugging
+LOGGING="false"
+WORKINGDIR="working_dir"      # Set up a default working directory
+
+# The list of regualar expressions we want to search for and remove from the target file
+set -A REMOVALS ^atx ^audix ^bbv billybob binary2 ^bvremedy ^cpl ^cpp[0-9] ^d[0-9] ^de[0-9] denv99 ^dh[0-9] ^di[0-9] ^htc[0-9] ^ibm[0-9] kcu100 ^kc3d ^netlab- ^netx[0-9] ^np[0-9] ^nt ^pdw[0-9] ^q[0-9] ^rawrt ^sabre[0-9] ^scn sgitest ^slipsrvr startrek sunking sunmgr sunny ^sw ^syn tasktrack ^temp ^to[0-9] ^tos[0-9] ^tpc ^tph ^tps ^tsp ^vpn[0-9] ^xc ^xed xsteel
+
+
+###########################################################################################
+### Script Specific Functions                                                           ###
+###########################################################################################
+displayUsage ()
+    {
+    ${CMD_ECHO} ""
+    ${CMD_ECHO} "Usage: $0 -i <input file> [-d] [-l <logfile>] [-?]"
+    ${CMD_ECHO} "    -d    Debug"
+    ${CMD_ECHO} "    -i    Input file"
+    ${CMD_ECHO} "    -l    Logfile"
+    ${CMD_ECHO} "    -?    Display command usage information"
+
+    exit 255
+    }
+
+
+###########################################################################################
+### Script Main Body                                                                    ###
+###########################################################################################
+
+# Go thru the command line arguments
+if [ $# -eq 0 ]; then
+    displayUsage
+fi
+
+while [ $# -ne 0 ]
+do
+    case $1 in
+        -d) DEBUG="true"
+            ;;
+
+        -i) shift
+            INPUT_FILE=$1
+            ;;
+
+        -l) shift
+            LOGFILE=$1.${DATE}
+            LOGGING="true"
+            ;;
+
+        -w) shift
+            WORKINGDIR=$1
+            ;;
+        -?) displayUsage
+            ;;
+
+         *) echo "Invalid command line arguement!\n"
+            displayUsage
+            ;;
+    esac
+    shift
+done
+
+if [[ ! -d ${WORKINGDIR} ]]; then
+    ${CMD_MKDIR} ${WORKINGDIR}
+fi
+
+# Save the original version of the file
+VERSION=`${CMD_DATE} "+%Y%m%d"`${COUNT}0
+CURRENTFILENAME=${INPUT_FILE}.${VERSION}
+safeRunCommand "${CMD_COPY} ${INPUT_FILE} ${WORKINGDIR}/${CURRENTFILENAME}"
+
+# Now go through and remove all lines listed in the REMOVALS array
+for ITEM in ${REMOVALS[@]}; do
+    # Update the save file extension
+    (( COUNT+=1 ))
+    if [[ ${COUNT} -lt 10 ]]; then
+        COUNT="0${COUNT}"
+    fi
+    VERSION=${DATE}${COUNT}
+
+    OLDFILENAME=${CURRENTFILENAME}
+    CURRENTFILENAME=${INPUT_FILE}.${VERSION}
+
+    [[ ${DEBUG} = "true" ]] && safeRunCommand "${CMD_ECHO} 'Version: ${VERSION}'"
+    [[ ${DEBUG} = "true" ]] && safeRunCommand "${CMD_ECHO} 'Old File Name: ${OLDFILENAME}'"
+    [[ ${DEBUG} = "true" ]] && safeRunCommand "${CMD_ECHO} 'New File Name: ${CURRENTFILENAME}'"
+    [[ ${DEBUG} = "true" ]] && safeRunCommand "${CMD_ECHO} 'Removing Lines Containing: ${ITEM}'"
+
+    [[ ${DEBUG} = "true" ]] || [[ ${LOGGING} = "true" ]] && safeRunCommand "${CMD_EGREP} ${ITEM} ${WORKINGDIR}/${OLDFILENAME}"
+    safeRunCommand "sed -e '/${ITEM}/d' ${WORKINGDIR}/${OLDFILENAME} >> ${WORKINGDIR}/${CURRENTFILENAME}"
+
+    [[ ${DEBUG} = "true" ]] && safeRunCommand "${CMD_ECHO} 'Done Removing Lines Containing: ${ITEM}'"
+    [[ ${DEBUG} = "true" ]] && safeRunCommand "${CMD_ECHO} ''"
+done
+
+# Now create a list of all lines removed from the forward zone so the
+# correcpsonding lines can be removed from the reverse zone files
+set -A REVERSE `${CMD_DIFF} ${INPUT_FILE} ${WORKINGDIR}/${CURRENTFILENAME} | ${CMD_EGREP} "^<" | ${CMD_AWK} {'print $2'}`
+set -A FILES `${CMD_LS} -1 *.rev | ${CMD_EGREP} -v localhost`
+
+for FILE in ${FILES[@]}; do
+    [[ ${DEBUG} = "true" ]] && ${CMD_ECHO} "File: ${FILE}"
+
+    # Save the original version of the file
+    COUNT=0
+    VERSION=${DATE}0
+    OLDFILE=${FILE}.${VERSION}${COUNT}
+    safeRunCommand "${CMD_COPY} ${FILE} ${WORKINGDIR}/${OLDFILE}"
+
+    (( COUNT+=1 ))
+    OLDFILE=${FILE}.${VERSION}${COUNT}
+    (( COUNT+=1 ))
+    NEWFILE=${FILE}.${VERSION}${COUNT}
+
+    safeRunCommand "${CMD_COPY} ${FILE} ${WORKINGDIR}/${OLDFILE}"
+    
+    for ITEM in ${REVERSE[@]}; do
+        [[ ${DEBUG} = "true" ]] && safeRunCommand "${CMD_ECHO} File: ${FILE} Item: ${ITEM}"
+        safeRunCommand "sed -e '/${ITEM}/d' ${WORKINGDIR}/${OLDFILE} > ${WORKINGDIR}/${NEWFILE}"
+        safeRunCommand "${CMD_COPY} ${WORKINGDIR}/${NEWFILE} ${WORKINGDIR}/${OLDFILE}"
+    done
+done
